@@ -1,7 +1,8 @@
 from django.contrib import admin
 from django.utils.html import format_html
+from django.urls import reverse
 
-from .models import Category
+from .models import Category, Product, ProductImage
 from .forms import CategoryForm
 
 
@@ -65,4 +66,53 @@ class CategoryAdmin(admin.ModelAdmin):
         self.message_user(
             request,
             f'{updated_count} category(ies) were successfully marked as inactive.'
+        )
+
+
+class ProductImageInline(admin.TabularInline):
+    model = ProductImage
+    extra = 1
+
+
+@admin.register(Product)
+class ProductAdmin(admin.ModelAdmin):
+    list_display = ('name', 'category__name', 'get_price', 'is_active', 'created_at')
+    list_filter = ('is_active', 'category__name', 'created_at')
+    list_display_links = ('name', 'category__name')
+    search_fields = ('name', 'description')
+    prepopulated_fields = {'slug': ('name',)}
+    date_hierarchy = 'created_at'
+    list_per_page = 20
+    ordering = ('name',)
+    empty_value_display = '-empty-'
+    readonly_fields = ('created_at', 'updated_at')
+    inlines = [ProductImageInline]
+    fieldsets = (
+        ('Basic Information', {
+            'fields': ('name', 'slug', 'category', 'description')
+        }),
+        ('Pricing', {
+            'fields': ('price', 'sale')
+        }),
+        ('Status', {
+            'fields': ('is_active',)
+        }),
+        ('Timestamps', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',),
+        }),
+    )
+
+    def category__name(self, obj):
+        if obj.category:
+            url = reverse('admin:products_category_change', args=[obj.category.id])
+            return format_html('<a href="{}">{}</a>', url, obj.category.name)
+        return '-'
+    
+    @admin.display(description='Price')
+    def get_price(self, obj):
+        return format_html(
+            '<span style="text-decoration: line-through; color: #999;">${}</span><br><strong style="color: #e74c3c;">${}</strong>', 
+            obj.get_price(), 
+            obj.get_sale()
         )
